@@ -331,11 +331,465 @@ select * from emp e, dept d;
 
 ##### 99语法
 
+将联结条件和过滤条件分开，引入新的JOIN语法，使用on子句完成表连接，使用where进行条件过滤
+
+```sql
+--CROSS JOIN，相当于92语法中的笛卡尔积
+select * from emp cross join dept;
+
+--NATURE JOIN,相当于等值连接，但是注意不需要写连接条件，会从两张表中自动找到相同的列做连接
+--当两张表中没有相同的列名的时候，会进行笛卡尔积操作,所以一般在使用时先确定两个表之间有相同字段
+select * from emp e naturnal join dept d;
+select * from emp e naturnal join salgrade sg;
+
+--ON子句,添加连接条件,可以代替92语法中进行的的等值连接、非等值连接
+select * from emp e join dept d on e.deptno = d.deptno;
+select * from emp e join salgrade sg on e.sal between sg.losal and sg.hisal;
+
+--OUTER JOIN
+--LEFT OUTER JOIN 将左表中的全部数据正常显示，右表没有对应记录则直接显示空
+select * from emp e left outer join dept d on e.deptno = d.deptno;
+--RIGHT OUTER JOIN 
+select * from emp e right outer join dept d on e.deptno = d.deptno;
+--FULL OUTER JOIN 将左右表中的全部数据正常显示，表中若没有对应记录则直接显示空，相当于左外连接和右外连接的合集
+select * from emp e full outer join dept d on e.deptno = d.deptno;
+
+--INNER JOIN 等同于两张表的连接查询，只会查询出有匹配记录的数据
+--INNER JOIN等同于JOIN等同于where，WHERE子句中使用的连接语句，在数据库语言中，被称为隐性连接。INNER JOIN……ON子句产生的连接称为显性连接。（其他JOIN参数也是显性连接）
+select * from emp e inner join dept d on e.deptno = d.deptno;
+
+--USING子句,除了可以使用on表示连接条件，也可以使用using作为连接条件,此时，连接条件的列不再归属于任何一张表
+select * from emp e join dept d using(deptno);
+select * from emp e join dept d on e.deptno = d.deptno;
+select deptno from emp e join dept d using(deptno);(可以查询到deptno)
+select e.deptno from emp e join dept d using(deptno);(不可以查询deptno，因为deptno不再属于emp或者dept，不能通过这两张表找到deptno)
+
+
+
+--总结：两种语法的SQL语句没有任何限制，在公司中可以随意使用，但是建议使用99语法，不要使用92语法，SQL语句显得更清楚
+```
+
 
 
 ```sql
+--总结
+inner join = join
+left join 左连接
+right join 右连接
+full join 
+```
+
+
+
+
+
+
+
+### 子查询
+
+子查询就是嵌套在其他查询中的查询，可以将子查询看做一张表。外层的语句可以把内嵌的子查询返回的结果当成一张表使用。
+
+* 子查询要用括号括起来
+
+* 将子查询放在比较运算符的右侧，增强可读性
+
+* 分为单行子查询和多行子查询
+
+  
+
+```sql
+--单行子查询,子查询返回一条记录，使用单行记录比较运算符
+--1.有哪些人的薪水是在整个雇员的平均薪水之上的
+	-- 先求平均薪水
+	--把所有人的薪水和平均薪水作比较
+select e.ename from e.emp where e.sal >= (select avg(e.sal) from emp e);
+
+
+--多行子查询，子查询可以返回多条结果值,使用多行运算符，如in、some、all
+--2.查询雇员中有哪些人是经理人
+	--先查询所有的经理人编号
+	select distinct e.mgr from emp e;
+	--在雇员表中过滤这些编号
+	select * from emp e where e.empno in (select e.mgr from emp e);
+	
+
+--在From子句中使用子查询
+--3.每个部门平均薪水的等级
+	--先求部门的平均薪水
+	select e.deptno,avg(e.sal) from emp e group by e.deptno;
+	--跟薪水等级表做关联，求出平均薪水的等级
+	select t.deptno,sg.grade from salgrade sg join (select e.deptno,avg(e.sal) vsal from emp e group by e.deptno) t on t.vsal between sg.losal and sg.hisal;
 
 ```
+
+
+
+```sql
+--1.求平均薪水最高的部门的部门编号
+--求部门的平均薪水
+select e.deptno,avg(e.sal) from emp e group by e.deptno
+--求平均薪水最高的部门
+select max(t.vsal) from (select e.deptno,avg(e.sal) vsal from emp e group by e.deptno) t
+--求部门编号
+select t.deptno 
+from (select e.deptno,avg(e.sal) vsal from emp e group by e.deptno) t
+where t.vsal = 
+(select max(t.vsal) from (select e.deptno,avg(e.sal) vsal from emp e group by e.deptno) t);
+
+--2.求部门平均的薪水等级
+--求部门每个人的薪水等级
+select e.deptno,sg.grade from emp e join salgrade sg on e.sal between sg.losal and sg.hisal
+--按照部门分组求平均薪水等级
+select t.deptno,avg(t.grade) from 
+(select e.deptno,sg.grade from emp e join salgrade sg on e.sal between sg.losal and sg.hisal t) 
+group by t.deptno;
+
+--限制输出：limit，是mysql中用来做限制输出的，但是Oracle中不能这么使用
+--在oracle中进行限制输出和分页的功能时，必须要使用rownum，但是rownum不能直接使用，rownum是在虚拟表中创建的字段，只有在嵌套查询时才可以使用到rownum
+--3.求薪水最高的前5名雇员
+select * 
+from (select * from emp e order by e.sal desc) t1
+where rownum <=5;
+
+--4.求薪水最高的第6到10名雇员
+select * from (select * from emp e order by e.sal desc) t1 
+where rownum>5 and rownum <=10;
+--上面的语句是错误的，因为rownum的值其实是在随着过滤条件动态生成的，如果先进行>5的过滤，那么rownum就会跳过前5条记录，将原来的第6条作为rownum=1开始生成，所以可以将某个范围先作为过滤条件过滤，同时保存此时的rownum作为一个字段，然后再对新生成的这张表通过rownum进行过滤
+select * 
+from (select t1.*,rownum rn from (select * from emp e order by e.sal desc) t1 where rownum <=10) t where t.rn > 5 and t.rn <=10;
+--或
+select * 
+from (select t1.*, rownum from (select * from emp e order by e.sal desc) t1) t
+where t.rn > 5 and t.rn <= 10;
+```
+
+
+
+
+
+### Oracle表设计
+
+
+
+##### 视图view
+
+* 也称为虚表，不占用物理空间，因为视图本身的定义语句还是要存储在数据字典里的，视图只有逻辑定义。每次使用的时候只是重新执行SQL。
+* 视图是从一个或多个实际表中获得的，这些表的数据存放在数据库中。那些用于产生视图的表叫做该视图的基表。一个视图也可以从另一个视图中产生。
+* 视图的定义存在数据库中，于此定义相关的数据并没有再存一份于数据库中，通过视图看到的数据存放在基表中。
+* 视图看上去非常像数据库的物理表，对它的操作同任何其它的表一样。当通过视图修改数据时，实际上是在改变基表中的数据；相反地，基表数据的改变也会自动反映在由基表产生的视图中。由于逻辑上的原因，有些Oracle视图可以修改对应的基表，有些则不能（仅仅能查询）
+
+* Oracle中特有的**物化视图**：占用物理空间，它的更新是通过设置决定的，一共有两种设置：on commit和on demand来确定是和基表同时更新还是在使用时更新
+* 在查询时，只需从视图中查询，无需再写完全的select查询语句
+* 当视图不再被需要的时候，使用“drop view”删除视图，不会对数据造成影响，因为视图只是基于数据库的表之上的一个查询定义。
+
+* 创建视图的语法
+
+```sql
+CREATE [OR REPLACE]  --创建或者替换
+VIEW view     -- 视图名称
+[(alias[, alias]...)] --别名
+AS subquery  --子查询
+[WITH READ ONLY]; --只读视图，无法修改
+```
+
+
+
+* 授权视图：普通用户在第一次使用视图时如果提示没有权限，需要管理员先为用户授权
+
+```sql
+--使用system用户为scott用户增加权限
+grant create view, create table to scott;
+--使用system用户为scott解锁
+alter user scott account unlock;
+--回收权限
+revoke create view from scott;
+```
+
+
+
+* 视图的使用
+
+```sql
+--管理员为用户授权创建视图
+grant create view to scott;
+--创建视图
+create view v_emp as select * from emp deptno = 30;
+--视图的使用
+select * from v_emp;
+--向视图中添加数据,执行成功之后需要提交事务，因为这条数据在执行后是被写入某个缓存区域，只在当前会话有效，提交事务后会将这条数据写入文件，在数据库中真实生效
+insert into v_emp(empno, ename) values(1111, 'test');
+--如果定义的视图是非只读视图可以插入数据，只读视图则不可以插入数据
+create view v_emp2 as(select * from emp) with read only;
+insert into v_emp2(empno, ename) values(123, 'dfi');--无法插入，只读视图只能查询，不能增删改
+--删除视图
+drop view v_emp2;
+--当删除视图中的数据的时候，如果数据来源于多个基表，则此时不能全部进行删除，只能删除一个表中的数据
+```
+
+
+
+* 视图练习
+
+```sql
+--求平均薪水的等级最低的部门(完全使用子查询)
+--通过视图可以将重复的sql语句给抽象出来
+--1.求平均薪水
+select e.deptno,avg(sal) from emp e group by e.deptno;
+--2.求平均薪水的等级
+select t.deptno, sg.grade gd from salgrade sg join (select e.deptno,avg(sal) vsal from emp e group by e.deptno) t on t.vsal between sg.losal and sg.hisal;
+--3.求平均薪水的等级最低的部门
+select min(t.gd) from salgrade sg join (select t.deptno, sg.grade from salgrade sg join (select e.deptno,avg(sal) vsal from emp e group by e.deptno) t on t.vsal between sg.losal and sg.hisal) t
+--4.求平均薪水的等级最低的部门的部门名称
+select d.dname, d.deptno from dept d join (select t.deptno, sg.grade gd from salgrade sg join (select e.deptno, avg(e.sal) vsal from emp e group by e.deptno) t on t.vsal between sg.losal and sg.hisal) t on t.deptno = d.deptno where t.gd = (select min(t.gd) from salgrade sg join (select t.deptno, sg.grade from salgrade sg join (select e.deptno,avg(sal) vsal from emp e group by e.deptno) t on t.vsal between sg.losal and sg.hisal) t)
+
+--求平均薪水的等级最低的部门(使用视图)
+--创建视图
+create view v_deptno_grade as select t.deptno, sg.grade gd from salgrade sg join (select e.deptno, avg(e.sal) vsal from emp e group by e.deptno) t on t.vsal between sg.losal and sg.hisal;
+--使用视图替换后
+SELECT
+	d.dname,d.deptno 
+FROM dept d
+JOIN v_deptno_grade t ON t.deptno = d.deptno 
+WHERE t.gd = 
+   (SELECT min( t.gd ) 
+	FROM v_deptno_grade t);
+
+```
+
+
+
+##### 用户管理
+
+
+
+```sql
+-- 创建用户
+create user [username] identified by [password];
+-- 查看用户是否创建
+select username from dba_users;
+--用户授权
+grant
+privileges -- 授予的权限
+[on object_name] --某个库的某个表
+to username --给某个用户
+
+grant create session to John;
+--收回授予用户John的scott用户表emp的所有权限
+revoke all on scott.emp from John;
+--查看自己的权限
+select * from user_sys_privs;
+```
+
+
+
+##### 序列sequence
+
+* 是Oracle专有的对象，用来产生一个自动递增的数列，mysql中可以直接对字段进行值自动递增的设置。
+* 语法
+
+
+
+```sql
+create sequence seq_name   --设置序列名字seq_name
+increment by n				--每次增长的值是n
+start with n				--从n开始
+maxvalue |no maxvalue 10^27 or -1	--最大值
+minvalue |no minvalue		--最小值
+cycle| nocycle				--是否循环
+cache|nocache				--是否设定缓存，将序列中会被使用的值预先存在缓存中，提高效率
+```
+
+
+
+```sql
+--在Oracle中如果需要完成一个列的自增操作，必须要使用序列
+--创建序列
+create sequence my_sequence
+increment by 2
+start with 1
+
+--如何使用序列
+--注意，如果创建好序列之后，没有经过任何的使用，那么不能获取当前的值，必须要先执行nextval之后才能获取当前值
+--1.查看当前序列的值
+select my_sequence.currval from dual;
+--2.获取序列的下一个值
+select my_sequence.nextval from dual;
+--插入值的时候使用序列
+insert into emp(empno, ename) values(my_sequence.nextval, 'hehe');
+--删除序列
+drop sequence seq_name;
+```
+
+
+
+
+
+### DML 数据库操作语言
+
+
+
+* 在实际项目中，使用最多的是读取操作，但是插入数据和删除数据同等重要，而修改操作相对较少
+
+* 增删改在进行操作的时候都需要”事务“的保证，也就是说每次在pl/sql中执行sql语句之后都需要完成commit操作，所以事务变得非常关键。
+
+* 事务存在的最主要的目的是为了保证数据一致性，如果同一份数据在同一个时刻只能有一个人访问就不会出现数据错乱的问题，但是在现在的项目中，更多的是并发访问，并发访问同时带来的就是数据的不安全，也就是不一致。
+
+* 如果要保证数据的安全，最主要的方式就是加锁的方式，MVCC
+
+* 事务的延伸：
+
+  * 最基本的数据库事务
+  * 声明式事务
+  * 分布式事务
+
+* 为了提高效率，有可能多个操作会在同一个事务中执行，那么就有可能部分成功，部分失败，基于这样的情况，就需要事务的控制。
+
+  select * from emp where id = 908 for update //排它锁
+
+  select * from emp where id = 897 lock in share mode //共享锁
+
+* 如果不保证事务的话，会造成脏读，不可重复读，幻读
+
+
+
+##### 增——插入操作
+
+* 元组值的插入
+
+* 查询结果的插入
+
+
+
+```sql
+--元组值的插入：最基本的插入方式
+
+--1.如果表名之后没有列，那么只能将所有的列都插入
+insert into tablename values(val1,val2,...)
+--2.可以指定向哪些列中插入数据
+--向部分列插入数据的时候，不是想向那个列插入就插入的，要遵循创建表的时候定义的规范
+--需要满足两个条件：该列定义为允许null值；在表定义中给出默认值，当不给定值时，可以使用默认值
+insert into tablename(col1,col2,...) values(val1, val2,...)
+```
+
+
+
+```sql
+--查询结果的插入
+
+--创建表的其它方式
+--复制另一张表的数据和结构生成新表, 不会复制约束
+create table emp2 as select * from emp;
+--只能复制表结构，不会复制约束
+create table emp3 as select * from emp where 1=2;
+--如果有一个集合的数据，把集合中的所有数据都挨条插入，效率一定极低，所以一般在实际的操作中，很少一条条插入，更多的是批量插入
+
+```
+
+
+
+##### 删
+
+
+
+* sql的删除操作是指从基本表中删除元组
+
+```sql
+--删除满足条件的数据
+delete from emp2 where deptno = 15;
+--删除所有数据，需要提交事务
+delete from emp2;
+--删除全部数据,truncate不同于delete，delete在进行删除时经过事务，truncate不经过事务，效率较高，但是一旦删除就是永久删除，不具备回滚的能力，风险较高，慎重使用
+truncate table emp2;
+```
+
+
+
+##### 改
+
+
+
+```sql
+--UPDATE tablename set col2 = val1, col2 = val2,... where condition
+--可以更新或者修改满足条件的一个列或多个列
+--更新单列的值
+update emp set ename = 'hiee' where ename = 'hehe';
+--更新多列的值
+update emp set job = 'teacher', mgr=7902 where empno = 15;
+```
+
+
+
+### 事务（Transaction）
+
+
+
+* 事务是一个操作序列，这些操作要么都做要么都不做，是一个不可分割的工作单位，是数据库环境中的逻辑工作单位。
+
+* 事务是为了保证数据库的完整性
+
+* 事务不能嵌套
+* 在Oracle中，没有事务开始的语句，一个Transaction起始于一条DML（Insert、Update、Delete）语句，结束于一下的几种情况：
+  * 用户显式执行Commit语句提交操作或Rollback语句回退。
+  * 当执行DDL（Create、ALter、Drop）语句事务自动提交
+  * 用户正常断开连接时，Transaction自动提交
+  * 系统崩溃或断电时事务自动回退
+
+
+
+```sql
+-- 事务的开始是一条DML语句
+insert into emp(empno, ename) values(1111, 'zhangsan');
+--事务的结束：
+--1.正常的commit（使数据修改生效）或者rollback（将数据恢复到上一个状态）
+commit;
+rollback;
+--2.自动提交，但是一般情况下要将自动提交进行关闭，因为自动提交会在每一条语句执行后进行提交，效率太低
+--3.用户关闭会话之后，会自动提交事务
+--4.系统崩溃或者断电时会回滚事务，也就是将数据恢复到上一个状态。
+```
+
+
+
+##### Commit & Rollback
+
+
+
+* commit表示事务成功地结束，此时告诉系统，数据库要进入一个新的正确状态，该事务对数据库的所有更新都已交付实施。每个commit语句都可以看成是一个事务成功地结束，同时也是另一个事务的开始。
+
+* Rollback表示事务不成功的结束，此时告诉系统，已发生错误，数据库可能出在不正确的状态，该事务对数据库的更新必须被撤销，数据库应恢复该事务到初始状态。每个Rollback语句同时也是另一个事务的开始。
+
+* 一旦执行了commit语句，将目前对数据库的操作提交给数据库（实际写入DB），以后就不能用Rollback进行撤销。
+
+* 执行一个DDL，DCL语句或从SQL*PLUS正常退出，都会自动执行commit命令。
+
+* savepoint 保存点：当一个操作集合中包含多条SQL语句，但只想让其中某部分成功，某部分失败，此时可以使用保存点。需要回滚到某一个状态的话可以使用Rollback to 保存点。
+
+  ```sql
+  delete from emp where empno = 1111;
+  delete from emp where empno = 2222;
+  savepoint sp1;
+  delete from emp where empno = 1234;
+  rollback to sp1;-- 将会回滚到保存点的状态
+  commit;-- 此时只是删除了1111和2222
+  ```
+
+  
+
+##### 事务的四个特性：ACID
+
+* 原子性（Atomicity）：表示不可分割，一个操作集合要么全部成功，要么全部失败，不可以从中间做切分。
+* 一致性（consistency）：为了保证数据的一致性，当经过N多个操作之后，数据的状态不会改变。从一个一致性状态到另一个一致性状态，也就是数据不能发生错乱
+* 隔离性（Isolation）：各个事务之间不会产生影响（隔离级别）。严格的隔离性会导致效率降低，在某些情况下为了提高程序的执行效率，需要降低隔离的级别。
+  * 隔离级别：读未提交--读已提交--可重复读--序列化
+  * 由于隔离级别设置的问题会导致数据不一致的问题：脏读、不可重复读、幻读
+* 持久性：所有数据的修改必须要持久化到存储介质中，不会因为应用程序的关闭而导致数据的丢失。
+
+四种特性中，哪个是最关键的？
+
+	* 所有的特性中都是为了保证数据的一致性，所以一致性是最终的追求。
+	* 事务中的一致性是通过原子性、隔离性、持久性来保证的
+
+
 
 
 
