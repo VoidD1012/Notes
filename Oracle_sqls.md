@@ -784,18 +784,295 @@ rollback;
   * 由于隔离级别设置的问题会导致数据不一致的问题：脏读、不可重复读、幻读
 * 持久性：所有数据的修改必须要持久化到存储介质中，不会因为应用程序的关闭而导致数据的丢失。
 
-四种特性中，哪个是最关键的？
-
-	* 所有的特性中都是为了保证数据的一致性，所以一致性是最终的追求。
-	* 事务中的一致性是通过原子性、隔离性、持久性来保证的
 
 
-
-
+> 四种特性中，哪个是最关键的？
+>
+> * 所有的特性中都是为了保证数据的一致性，所以一致性是最终的追求。
+> * 事务中的一致性是通过原子性、隔离性、持久性来保证的
 
 
 
+##### 锁的机制
 
+ 为了解决在并发访问的时候，数据不一致的问题，需要给数据加锁。
+
+加锁的同时需要考虑“粒度”的问题：
+
+	* 操作的对象：数据库、表、行
+ * 一般情况下，锁的粒度越小，效率越高，粒度越大，效率越低。例如：锁的是数据库，那么效率最低，锁的只是一行，那么效率就会高于粒度为数据库时
+   	* 在实际的工作环境中，大部分的操作都是行级锁
+
+
+
+##### mysql事务测试
+
+
+
+```sql
+1. 打开mysql的命令行，将自动提交事务给关闭
+-- 查看设置是否为自动提交，1表示开启，0表示关闭
+select @@autocommit;
+-- 设置关闭
+set autocommit = 0;
+
+2.数据准备
+--创建数据库
+create database tran;
+--切换数据库(为了测试事务，需要在两个窗口中执行)
+use tran;
+--准备数据
+create table psn(id int primary key, name varchar(10)) engine=innodb;
+--插入数据
+insert into psn values(1, 'zhangsan');
+insert into psn values(2, 'lisi');
+insert into psn values(3, 'wangwu');
+commit;
+
+3.测试事务
+--事务包含四个隔离级别：从上往下，隔离级别越来越高，意味着数据越来越安全
+read uncommitted ：读未提交
+read commited：读已提交
+repeatable read：可重复读
+Serializable：序列化执行，串行执行
+--产生数据不一致的情况
+脏读：在一个事务的数据未提交时，可以在另一个事务中访问到这个本不应该存在的数据
+不可重复读：在一个事务之中，读到的数据不相同
+幻读：数据库读到了事务中没有显示出来的数据,是在插入数据或者删除数据出现的，查询是不会出现的
+
+4.测试事务1
+-- 设置事务的隔离级别为读未提交————————产生脏读
+set session transaction isolation level read uncommitted;(session是当前事务生效)
+set global transaction isolation level read uncommitted;(应该设置为global全局统一事务的隔离级别)
+--开始两个窗口的测试
+A ：start transaction;
+A ：select * from psn;
+B ：start transaction;
+B ：select * from psn;
+--查到相同的数据
+A：update psn set name = 'msb';
+A：select * from psn;
+B：select * from psn;
+--此时B读取的结果是msb，产生脏读，因为A事务并没有commit，读取到了不存在的数据
+A：commit;
+B：select * from psn;
+--此时B读取的数据时msb，因为A事务已经commit，数据被持久化
+
+5.测试事务2
+--使用读已提交，可以避免脏读
+set session transaction isolation level read committed;
+start transaction;
+select * from psn;
+
+6.测试事务3
+--重复读：避免了不可重复读的情况，但是产生了幻读
+set session transaction isolation level repeatable read
+```
+
+
+
+
+
+| 隔离级别 | 异常情况 | 异常情况   | 异常情况 |
+| -------- | -------- | ---------- | -------- |
+| 读未提交 | 脏读     | 不可重复读 | 幻读     |
+| 读已提交 |          | 不可重复读 | 幻读     |
+| 可重复读 |          |            | 幻读     |
+| 序列化   |          |            |          |
+
+
+
+现在学习的是数据库级别的事务，需要掌握的就是事务的隔离级别和产生的数据不一致的情况，后续会学习声明式事务以及事务的传播特性以及分布式事务。
+
+
+
+### 常用数据类型
+
+
+
+| 数据类型            |                                       |
+| ------------------- | ------------------------------------- |
+| NUMBER(x,y)         | 数字类型，最长x位，y位小数            |
+| varchar2(maxlength) | 变长字符串，这个参数的上限是32767字节 |
+| char(max_length)    | 定长字符串，最大2000字节              |
+| date                | 日期类型，只能精确到秒                |
+| timestamp           | 时间戳，精确到微秒                    |
+| long                | 长字符串，最长到2GB                   |
+
+
+
+
+
+### 表的创建
+
+
+
+* 标准的建表语法
+
+```sql
+CREATE TABLE [schema.]table (
+	column datatype [DEFAULT expr], ...
+);
+```
+
+
+
+* 在创建新表时，指定的表名必须不存在，否则将出错
+* 使用默认值：当插入行时如果不给出值，dbms将自动采用默认值
+* 在用Create语句创建基本表时，最初只是一个空的框架，用户可以使用insert命令把数据插入表中。
+* 使用子查询创建表的语法
+
+```sql
+CREATE TABLE table[column (,column...)] AS subquery
+-- 新表的字段列表必须与子查询中的字段列表匹配
+-- 字段列表可以省略:
+CREATE table emp2 as select * from emp;
+```
+
+
+
+### 表结构的修改
+
+
+
+在基本表建立并使用一段时间后，可以根据实际需要对基本表的结构进行修改
+
+* 增加新的列：
+
+```sql
+alter table emp add address varchar(20);
+-- 新增加的列不能定义为not null， 基本表在增加一列后，原有元祖在新增加的列上的值都定义为空值
+```
+
+* 删除原有的列：
+
+```sql
+alter table emp drop column address;
+```
+
+* 修改字段
+
+```sql
+alter table emp modify(job varchar(50))
+```
+
+* 重新命名表
+
+```sql
+rename student to stu; 
+-- 将student表改名为stu表
+```
+
+* 删除表
+
+```sql
+/*
+在删除表的时候，经常会遇到多个表关联的情况，多个表关联的时候不能随意删除，需要使用级联删除：
+1. cascade方式：将依赖表中所有外键值与主表中要删除的主键值相对应的记录一起删掉
+2. set null：在删除的时候，将依赖表中所有与主表中被删除的主键值相对应的外键值设为空值
+3. RESTRICT方式：只有当依赖表中没有一个外键值与要删除的主表中主键值相对应时，才可以执行删除操作
+*/
+drop table stu;
+drop table stu cascade constraints; --级联删除
+```
+
+
+
+### 约束 constraint
+
+当我们创建表的时候，同时可以指定所插入数据的一些规则，比如说某个字段不能为空值， 某个字段的值（比如年龄）不能小于0等等，这些规则称为约束。**约束是在表上强制执行的数据校验规则**。
+
+
+
+Oracle支持五类完整性约束：
+
+```sql
+1. NOT NULL 非空约束
+   -- 插入数据的时候某些列不允许为空
+2. UNIQUE KEY 唯一键约束
+   -- 可以限定某一个列的值是唯一的，唯一键的列一般被用作索引列。
+3. PRIMARY KEY 主键
+   -- 非空且唯一，任何一张表一般情况下最好有主键，用来唯一的标识一行记录
+4. FOREIGN KEY 外键
+   -- 当多个表之间有关联关系（一个表的某个列的值依赖与另一张表的值）的时候，需要使用外键
+5. CHECK 自定义检查约束
+   -- 可以根据用户自己的需求去限定某些列的值
+```
+
+
+
+* 创建表的时候创建约束
+
+```sql
+CREATE table student (
+	stu_id number(10) primary key, --主键
+    name varchar2(20) not null,  -- 非空
+    age number(3) check(age>0 and age<126), --check约束
+    email varchar2(50) unique,    --唯一键
+	deptno NUMBER(2) foreign key (deptno) references dept(deptno) --外键约束
+    -- 格式：foreign key(字段名) references 表名（字段名）[on delete [cascade | set null]] 如省略on短语，缺省则默认使用RESTRICT方式，即无法删除，除非解决掉含有依赖的数据
+);
+```
+
+
+
+* 约束的添加和撤销
+
+```sql
+--约束可以增加或删除，但是不能直接修改（con_name是约束名称，必给）
+-- 在创建表的时候直接将各个表的约束条件添加好，如果包含外键约束的话，最好先把外键关联表的数据优先插入
+add constraint con_name unique(col);
+drop constraint con_name[cascade];
+alter table student add constraint fk_001 foreign key(deptno) references dept(deptno);
+-- alter table 表名 add constraint 约束名 foreign key(字段名) references 外键表名(外键);
+```
+
+
+
+* 查询约束
+
+```sql
+
+
+```
+
+
+
+
+
+### 索引
+
+* 索引是为了加快对数据的搜索速度而设立的。索引是方案（schema）中的一个数据库对象，与表独立存放。
+
+* 索引的作用：在数据库中用来加速对表的查询，通过使用快速路径访问方法快速定位数据，减少了磁盘的I/O
+
+* sql中的索引是非显示索引，也就是在索引创建以后，在用户撤销它之前不会在用到该索引的名字，但是索引在用户查询时会自动其作用。
+* 索引是保存在磁盘文件中的。
+
+* 索引的创建有两种情况：1.自动创建，当在表上定义一个primary key或者unique约束条件时，Oracle数据库自动创建一个对应的唯一索引。2. 手动创建，用户可以创建索引以加速查询。
+
+* 开发中使用索引的要点：
+
+  > 1. 索引**改善检索操作的性能，但降低数据插入、修改和删除的性能**。在执行这些操作时，DBMS必须动态的更新索引。
+  > 2. 索引数据可能要占用大量的存储空间
+  > 3. **并非所有的数据都适合于索引。唯一性不好的数据从索引得到的好处不比具有更多可能值的数据从索引得到的好处多。**
+  > 4. 索引用于数据过滤和数据排序。如果你经常以某种特定的顺序排序数据，则该数据可能是索引的备选。
+  > 5. 可以在索引中定义多个列（如省加城市），这样的索引只在以省加城市的顺序排序时有用。如果想按城市排序，则这种索引没有用处。（组合索引的问题、最左匹配）
+
+* 索引语句
+
+```sql
+--回表会导致数据量少的时候，有索引比没有索引的查询速度要慢一点
+
+-- 创建索引
+-- create index 索引名字 on 表名（字段名1,字段名2,...）
+create index i_ename on emp(ename);
+
+-- 删除索引
+-- drop index 索引名
+drop index i_ename;
+
+```
 
 
 
