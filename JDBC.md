@@ -109,34 +109,60 @@ Connection con=DriverManager.getConnection(URL,Username,Password);
 ```java
 
 //1.加载驱动————反射
+/**
+ * 当执行了当前代码之后，会返回一个Class对象，在此对象的创建过程中，会调用具体类的静态代码块
+ **/
 Class.forName("oracle.jdbc.driver.OracleDriver");
 
-
-
-
 //2.建立连接
+/**
+ * 第一步中已经将Driver对象注册到DriverManager中，所以此时可以直接通过DriverManager来获取数据库的连接
+ * getConnection(url， username， password);需要输入连接数据库的参数：
+ 	* url ： 数据库的地址
+ 	* username ：用户名
+ 	* password ： 密码
+ **/
 //thin：是连接Oracle数据库的一种方式
 //orcl：表示一个Oracle数据库实例
-//getConnection(数据库url， 用户名， 密码);
 Connection connection = DriverManager.getConnection("jdbc:oracle:thin:@localhost:1521:orcl", “Scott”, "123456");
-
-
 
 //3.测试连接是否成功：能否获取到Connection对象
 System.out.println(connection);
 //4.定义sql语句
+/**
+ * 只要填写正常执行的sql语句即可
+ **/
 String sql = "select * from emp";
+
 //5.准备静态处理块对象，用于存放sql语句
+/**
+ * 在执行sql语句的过程中，需要一个对象来存放sql语句，将对象进行执行的时候调用的是数据库的服务，数据库会从当前对象中拿到对应的sql语句进行执行
+ **/
 Statement statement = connection.createStatement();
+
 //6.执行sql语句,返回值对象是结果集合
+/**
+ * 将结果放到ResultSet中，是返回结果的一个集合，需要经过循环迭代才能获取到其中的每一条记录
+ *
+ * statement在执行的时候可以选择三种方式：
+ * 1. execute ：任何sql语句都可以执行
+ * 2. executeQuery :只能执行查询语句
+ * 3. executeUpdate：只能执行DML语句
+ **/
 ResultSet rs = statement.execute(sql);
+
 //7.循环处理结果
+/**
+ * 使用while循环，有两种获取具体值的方式，第一种通过下标索引编号来获取，注意下标是从1开始的；第二种是通过列名来获取；
+ * 推荐使用列名获取，一般不会发生变化
+ **/
 while(rs.next()) {
     int anInt = rs.getInt(1); //索引从1开始
     System.out.println(anInt);
     String ename = rs.getString("ename");
     System.out.println(ename);
 }
+
 //8.关闭连接
 statement.close();
 connection.close();
