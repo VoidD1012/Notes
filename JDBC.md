@@ -168,3 +168,19 @@ statement.close();
 connection.close();
 ```
 
+
+
+
+
+#### *SQL注入
+
+需要注意的安全问题：当用户传入一些参数后，程序中没有做任何校验规则判断，这时用户可以将用户表中的所有数据都查询到。
+
+最简单的防止sql注入方式：使用PrepareStatement来代替Statement保存sql语句处理
+
+
+
+
+
+### 反射
+
